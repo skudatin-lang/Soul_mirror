@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soul Mirror - Интегративный портрет</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪞</text></svg>">
+</head>
+<body>
+    <!-- Прогресс-бар -->
+    <div class="progress-bar">
+        <div class="progress-step" data-step="1">
+            <div class="step-circle">1</div>
+            <div class="step-label">Формат</div>
+        </div>
+        <div class="progress-step" data-step="2">
+            <div class="step-circle">2</div>
+            <div class="step-label">Анкета</div>
+        </div>
+        <div class="progress-step" data-step="3">
+            <div class="step-circle">3</div>
+            <div class="step-label">Поза и фото</div>
+        </div>
+        <div class="progress-step" data-step="4">
+            <div class="step-circle">4</div>
+            <div class="step-label">Договор</div>
+        </div>
+        <div class="progress-step" data-step="5">
+            <div class="step-circle">5</div>
+            <div class="step-label">Результаты</div>
+        </div>
+    </div>
+
+    <div class="app-container" id="app-container">
+        <!-- Приложение загружается здесь -->
+    </div>
+
+    <!-- Скрипты -->
+    <script src="config.js"></script>
+    <script src="gsheet.js"></script>
+    <script src="app/state.js"></script>
+    
+    <!-- Сервисы из папки services/ -->
+    <script src="services/contract.js"></script>
+    <script src="services/telegram.js"></script>
+    
+    <!-- Основное приложение -->
+    <script src="app/screens.js"></script>
+    <script src="app/screens/screen1.js"></script>
+    <script src="app/screens/screen2.js"></script>
+    <script src="app/screens/screen3.js"></script>
+    <script src="app/screens/screen4.js"></script>
+    <script src="app/screens/screen5.js"></script>
+    <script src="app/app.js"></script>
+</body>
+</html>
