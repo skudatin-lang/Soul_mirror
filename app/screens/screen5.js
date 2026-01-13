@@ -22,7 +22,6 @@ window.Screen5 = {
     // HTML экрана
     getHTML() {
         const format = AppState.getSelectedFormat();
-        const pose = AppState.getSelectedPose();
         const results = AppState.user.archetypeResults || {};
         
         return `
@@ -259,7 +258,6 @@ window.Screen5 = {
                     </div>
                     
                     <div class="tab-content" id="balanceTab">
-                        <!-- ... (код без изменений, как в предыдущей версии) ... -->
                         <div class="result-card">
                             <div class="card-header">
                                 <div class="header-icon">
@@ -413,8 +411,19 @@ window.Screen5 = {
     
     // Форматирование рекомендаций
     formatRecommendations(recommendations) {
+        console.log('Рекомендации для форматирования:', recommendations);
+        
         if (!recommendations || recommendations.length === 0) {
-            return '<p>Рекомендации не найдены</p>';
+            return `
+                <div class="no-recommendations">
+                    <div class="no-rec-icon">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <h4>Рекомендации будут доступны после полной загрузки данных</h4>
+                    <p>Ваши персональные рекомендации формируются на основе анализа всех ответов.</p>
+                    <p>Если это сообщение остаётся долгое время, пожалуйста, обновите страницу.</p>
+                </div>
+            `;
         }
         
         let html = '';
@@ -453,7 +462,7 @@ window.Screen5 = {
         // Создаем диаграмму архетипов
         this.renderArchetypeChart(results);
         
-        // Создаем диаграмму баланса
+        // Создаем диаграмму баланса (радиальную)
         this.renderBalanceChart(results);
     },
     
@@ -544,9 +553,126 @@ window.Screen5 = {
         container.innerHTML = html;
     },
     
-    // Создание диаграммы баланса (остается без изменений)
+    // Создание диаграммы баланса (радиальная диаграмма)
     renderBalanceChart(results) {
-        // ... (код без изменений из предыдущей версии)
+        const container = document.getElementById('balanceChart');
+        if (!container || !results.domainScores) return;
+        
+        const domains = Object.keys(results.domainScores);
+        if (domains.length === 0) {
+            container.innerHTML = '<p class="no-data">Нет данных по сферам</p>';
+            return;
+        }
+        
+        // Подготавливаем данные для радиальной диаграммы
+        const domainData = domains.map(domain => {
+            const score = results.domainScores[domain];
+            const count = results.domainCounts[domain] || 1;
+            const avg = score / count;
+            
+            const domainInfo = AppState.data.domains ? AppState.data.domains[domain] : null;
+            const domainName = domainInfo ? domainInfo.name : domain;
+            
+            return {
+                domain: domain,
+                name: domainName,
+                value: avg,
+                normalized: (avg / 5) * 100,
+                isLowest: domain === results.lowestDomain,
+                isHighest: domain === results.highestDomain
+            };
+        });
+        
+        // Сортируем по названию для красивого отображения
+        domainData.sort((a, b) => a.name.localeCompare(b.name));
+        
+        // Создаем SVG радиальной диаграммы
+        const size = 300;
+        const center = size / 2;
+        const radius = 120;
+        const sliceAngle = (2 * Math.PI) / domainData.length;
+        
+        let svg = `
+            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" class="radial-svg">
+                <circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="#e9ecef" stroke-width="2"/>
+        `;
+        
+        // Добавляем секторы и метки
+        domainData.forEach((item, index) => {
+            const angle = sliceAngle * index;
+            const nextAngle = sliceAngle * (index + 1);
+            
+            // Линия до круга
+            const x1 = center + radius * Math.cos(angle);
+            const y1 = center + radius * Math.sin(angle);
+            
+            svg += `<line x1="${center}" y1="${center}" x2="${x1}" y2="${y1}" stroke="#e9ecef" stroke-width="1"/>`;
+            
+            // Текст метки
+            const labelAngle = angle + sliceAngle / 2;
+            const labelRadius = radius + 30;
+            const labelX = center + labelRadius * Math.cos(labelAngle);
+            const labelY = center + labelRadius * Math.sin(labelAngle);
+            
+            // Определяем цвет в зависимости от балла
+            let color = '#3498db'; // Синий по умолчанию
+            if (item.value >= 4) {
+                color = '#2ecc71'; // Зеленый для высокой гармонии
+            } else if (item.value <= 2) {
+                color = '#e74c3c'; // Красный для низкого балла
+            }
+            
+            if (item.isLowest) color = '#e74c3c';
+            if (item.isHighest) color = '#2ecc71';
+            
+            // Линия значения
+            const valueRadius = radius * (item.value / 5);
+            const valueX = center + valueRadius * Math.cos(labelAngle);
+            const valueY = center + valueRadius * Math.sin(labelAngle);
+            
+            svg += `
+                <line x1="${center}" y1="${center}" x2="${valueX}" y2="${valueY}" 
+                      stroke="${color}" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="${valueX}" cy="${valueY}" r="4" fill="${color}"/>
+                
+                <text x="${labelX}" y="${labelY}" text-anchor="middle" class="radial-label">
+                    <tspan x="${labelX}" dy="-5" class="label-name">${item.name}</tspan>
+                    <tspan x="${labelX}" dy="15" class="label-value">${item.value.toFixed(1)}</tspan>
+                </text>
+            `;
+        });
+        
+        // Центр диаграммы
+        svg += `
+                <circle cx="${center}" cy="${center}" r="30" fill="white" stroke="#3498db" stroke-width="2"/>
+                <text x="${center}" y="${center}" text-anchor="middle" dy="5" class="center-score">
+                    ${results.averageScore || '0'}
+                </text>
+                <text x="${center}" y="${center}" text-anchor="middle" dy="25" class="center-label">
+                    средний
+                </text>
+            </svg>
+        `;
+        
+        // Легенда
+        const legend = `
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #2ecc71"></span>
+                    <span>Высокая гармония (≥4)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #3498db"></span>
+                    <span>Умеренный баланс (2-4)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: #e74c3c"></span>
+                    <span>Требует внимания (≤2)</span>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = svg + legend;
     },
     
     // Инициализация вкладок

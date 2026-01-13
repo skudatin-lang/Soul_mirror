@@ -45,6 +45,28 @@ window.ScreenManager = {
                 Screen5.render();
                 break;
         }
+        
+        // Автоматическая прокрутка к началу экрана
+        this.scrollToTop();
+    },
+    
+    // Прокрутка к началу экрана
+    scrollToTop() {
+        setTimeout(() => {
+            const appContainer = document.getElementById('app-container');
+            if (appContainer) {
+                appContainer.scrollTo({
+                    top: 0,
+                    behavior: 'smooth'
+                });
+            }
+            
+            // Также прокручиваем body для надежности
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }, 50);
     },
     
     // Показать страницу оплаты
@@ -202,6 +224,9 @@ window.ScreenManager = {
                 </div>
             </div>
         `;
+        
+        // Автоматическая прокрутка
+        this.scrollToTop();
         
         // Инициализация событий страницы оплаты
         setTimeout(() => {

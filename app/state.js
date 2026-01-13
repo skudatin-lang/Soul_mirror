@@ -260,10 +260,222 @@ window.AppState = {
             dominant: results.dominantArchetype,
             duel: results.duelArchetypes,
             lowestDomain: results.lowestDomain,
-            recommendations: results.recommendations.length
+            recommendationsCount: results.recommendations.length
         });
         
         return results;
+    },
+    
+    // Генерация рекомендаций на основе правил
+    generateRecommendations(results) {
+        const recommendations = [];
+        
+        // Если нет правил, генерируем базовые рекомендации
+        if (!this.data.recommendationRules || this.data.recommendationRules.length === 0) {
+            console.log('Нет правил рекомендаций, генерируем базовые');
+            return this.generateBasicRecommendations(results);
+        }
+        
+        console.log('Генерация рекомендаций из', this.data.recommendationRules.length, 'правил');
+        
+        // 1. Рекомендации по сферам
+        if (results.domainScores) {
+            for (const [domain, score] of Object.entries(results.domainScores)) {
+                const count = results.domainCounts[domain] || 1;
+                const avgScore = score / count;
+                
+                this.data.recommendationRules.forEach(rule => {
+                    if (rule.condition_type === 'domain_score') {
+                        try {
+                            // Простая проверка для domain_score условий
+                            const conditionParts = rule.condition_value.split(' ');
+                            if (conditionParts.length === 2) {
+                                const operator = conditionParts[0];
+                                const value = parseFloat(conditionParts[1]);
+                                
+                                let conditionMet = false;
+                                if (operator === '<=' && avgScore <= value) conditionMet = true;
+                                if (operator === '>=' && avgScore >= value) conditionMet = true;
+                                if (operator === '<' && avgScore < value) conditionMet = true;
+                                if (operator === '>' && avgScore > value) conditionMet = true;
+                                
+                                if (conditionMet) {
+                                    const domainMatches = !rule.applicable_domains || 
+                                                         rule.applicable_domains.includes('all') || 
+                                                         rule.applicable_domains.includes(domain);
+                                    
+                                    if (domainMatches && !recommendations.includes(rule.recommendation_text)) {
+                                        recommendations.push(rule.recommendation_text);
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Ошибка оценки условия:', e);
+                        }
+                    }
+                });
+            }
+        }
+        
+        // 2. Рекомендации по архетипам
+        if (results.archetypeScores) {
+            for (const [archetype, score] of Object.entries(results.archetypeScores)) {
+                const count = results.archetypeCounts[archetype] || 1;
+                const avgScore = score / count;
+                
+                if (avgScore >= 4) { // Активный архетип
+                    this.data.recommendationRules.forEach(rule => {
+                        if (rule.condition_type === 'archetype_score') {
+                            try {
+                                const conditionParts = rule.condition_value.split(' ');
+                                if (conditionParts.length === 2) {
+                                    const archetypeName = conditionParts[0];
+                                    const threshold = parseFloat(conditionParts[1].replace('>=', ''));
+                                    
+                                    if (archetypeName === archetype && avgScore >= threshold) {
+                                        const archetypeMatches = !rule.applicable_archetypes || 
+                                                               rule.applicable_archetypes.includes('all') || 
+                                                               rule.applicable_archetypes.includes(archetype);
+                                        
+                                        if (archetypeMatches && !recommendations.includes(rule.recommendation_text)) {
+                                            recommendations.push(rule.recommendation_text);
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('Ошибка оценки условия архетипа:', e);
+                            }
+                        }
+                    });
+                }
+            }
+        }
+        
+        // 3. Рекомендации по дуэли архетипов
+        if (results.duelArchetypes && results.duelArchetypes.length === 2) {
+            const duelKey = results.duelArchetypes.sort().join('+');
+            
+            this.data.recommendationRules.forEach(rule => {
+                if (rule.condition_type === 'duel_archetypes' && 
+                    rule.condition_value === duelKey &&
+                    !recommendations.includes(rule.recommendation_text)) {
+                    recommendations.push(rule.recommendation_text);
+                }
+            });
+        }
+        
+        // 4. Рекомендации по самому слабому вопросу
+        if (results.weakestQuestion && results.weakestQuestionScore <= 2) {
+            this.data.recommendationRules.forEach(rule => {
+                if (rule.condition_type === 'lowest_question' &&
+                    !recommendations.includes(rule.recommendation_text)) {
+                    const recommendation = rule.recommendation_text.replace('этом утверждении', 
+                        `"${results.weakestQuestion.questionText.substring(0, 50)}..."`);
+                    recommendations.push(recommendation);
+                }
+            });
+        }
+        
+        // 5. Рекомендации по общему баллу
+        this.data.recommendationRules.forEach(rule => {
+            if (rule.condition_type === 'total_score') {
+                try {
+                    const conditionParts = rule.condition_value.split(' ');
+                    if (conditionParts.length === 2) {
+                        const operator = conditionParts[0];
+                        const threshold = parseInt(conditionParts[1]);
+                        
+                        let conditionMet = false;
+                        if (operator === '<=' && results.totalScore <= threshold) conditionMet = true;
+                        if (operator === '>=' && results.totalScore >= threshold) conditionMet = true;
+                        
+                        if (conditionMet && !recommendations.includes(rule.recommendation_text)) {
+                            recommendations.push(rule.recommendation_text);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Ошибка оценки условия общего балла:', e);
+                }
+            }
+        });
+        
+        // Если рекомендаций мало, добавляем базовые
+        if (recommendations.length < 3) {
+            console.log('Добавляем базовые рекомендации, так как мало специфических');
+            const basicRecs = this.generateBasicRecommendations(results);
+            basicRecs.forEach(rec => {
+                if (!recommendations.includes(rec)) {
+                    recommendations.push(rec);
+                }
+            });
+        }
+        
+        // Преобразуем в массив и ограничиваем количество
+        const finalRecommendations = recommendations.slice(0, 7);
+        console.log('✅ Сгенерировано рекомендаций:', finalRecommendations.length);
+        
+        return finalRecommendations;
+    },
+    
+    // Базовые рекомендации (если нет правил или мало)
+    generateBasicRecommendations(results) {
+        const recommendations = [];
+        
+        console.log('Генерация базовых рекомендаций');
+        
+        // Рекомендации по самой слабой сфере
+        if (results.lowestDomain && this.data.domains && this.data.domains[results.lowestDomain]) {
+            const domainInfo = this.data.domains[results.lowestDomain];
+            const avgScore = results.domainScores[results.lowestDomain] / 
+                            results.domainCounts[results.lowestDomain];
+            
+            if (avgScore <= 2 && domainInfo.recommendations_low) {
+                if (Array.isArray(domainInfo.recommendations_low)) {
+                    domainInfo.recommendations_low.slice(0, 2).forEach(rec => recommendations.push(rec));
+                } else if (typeof domainInfo.recommendations_low === 'string') {
+                    recommendations.push(domainInfo.recommendations_low);
+                }
+            } else if (avgScore <= 3.5 && domainInfo.recommendations_medium) {
+                if (Array.isArray(domainInfo.recommendations_medium)) {
+                    domainInfo.recommendations_medium.slice(0, 2).forEach(rec => recommendations.push(rec));
+                } else if (typeof domainInfo.recommendations_medium === 'string') {
+                    recommendations.push(domainInfo.recommendations_medium);
+                }
+            }
+        }
+        
+        // Рекомендации по доминирующему архетипу
+        if (results.dominantArchetype && this.data.archetypes && this.data.archetypes[results.dominantArchetype]) {
+            const archetypeInfo = this.data.archetypes[results.dominantArchetype];
+            if (archetypeInfo.recommendations) {
+                if (typeof archetypeInfo.recommendations === 'string') {
+                    const recs = archetypeInfo.recommendations.split('\n').filter(r => r.trim());
+                    recs.slice(0, 2).forEach(rec => recommendations.push(rec));
+                } else if (Array.isArray(archetypeInfo.recommendations)) {
+                    archetypeInfo.recommendations.slice(0, 2).forEach(rec => recommendations.push(rec));
+                }
+            }
+        }
+        
+        // Рекомендации по дуэли
+        if (results.duelArchetypes && results.duelArchetypes.length === 2) {
+            recommendations.push(`Ищите баланс между ${results.duelArchetypes[0]} и ${results.duelArchetypes[1]}`);
+            recommendations.push(`Соединяйте сильные стороны обоих архетипов`);
+        }
+        
+        // Общие рекомендации
+        if (recommendations.length < 3) {
+            recommendations.push(
+                "Практикуйте осознанность в повседневных решениях",
+                "Выделяйте время для регулярного самоанализа",
+                "Балансируйте активность и отдых"
+            );
+        }
+        
+        const finalRecs = recommendations.slice(0, 5);
+        console.log('✅ Базовые рекомендации:', finalRecs.length);
+        
+        return finalRecs;
     },
     
     // Генерация портрета с учетом всех активных архетипов
@@ -405,19 +617,6 @@ window.AppState = {
         }
         
         return summary;
-    },
-    
-    // Остальные функции остаются без изменений...
-    generateRecommendations(results) {
-        // ... (код без изменений)
-        const recommendations = new Set();
-        // ... (существующий код)
-        return Array.from(recommendations).slice(0, 7);
-    },
-    
-    generateBasicRecommendations(results) {
-        // ... (код без изменений)
-        return recommendations.slice(0, 5);
     },
     
     getArchetypeDescription(archetypeName) {
