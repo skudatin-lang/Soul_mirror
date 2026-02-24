@@ -1,4 +1,4 @@
-// telegram.js - отправка данных в Telegram (обновлённая версия с отправкой чека)
+// telegram.js - отправка данных в Telegram (обновлённая версия)
 window.sendOrderToTelegram = async function() {
     try {
         // Загружаем Telegram конфигурацию если еще не загружена
@@ -27,14 +27,9 @@ window.sendOrderToTelegram = async function() {
         const contractText = window.generateContractText ? window.generateContractText() : 'Договор не сгенерирован';
         await sendContractMessage(contractText);
         
-        // Если есть фото клиента, отправляем его
+        // Если есть фото, отправляем его
         if (window.AppState.user.uploadedPhoto) {
             await sendPhotoMessage();
-        }
-        
-        // Отправляем чек об оплате, если он был загружен
-        if (window.receiptFileToSend || window.AppState.user.receiptFile) {
-            await sendReceiptMessage();
         }
         
         // Отправляем сводку результатов
@@ -135,20 +130,9 @@ function formatTelegramMessage() {
         }
     }
     
-    // Информация об оплате
-    if (window.AppState.user.receiptFile || window.receiptFileToSend) {
-        message += `\n💰 *СТАТУС ОПЛАТЫ:*\n`;
-        message += `• Подтверждение оплаты: ЗАГРУЖЕНО\n`;
-        if (window.AppState.user.receiptFile) {
-            message += `• Файл чека: ${window.AppState.user.receiptFile.name}\n`;
-        }
-    } else {
-        message += `\n💰 *СТАТУС ОПЛАТЫ:* Ожидает подтверждения\n`;
-    }
-    
     // Статус договора
     message += `\n📝 *Договор:* Сформирован автоматически\n`;
-    message += `✅ *Статус:* ${window.AppState.user.paymentUnderReview ? 'На проверке оплаты' : 'Ожидает оплаты'}\n\n`;
+    message += `✅ *Статус:* Ожидает оплаты\n\n`;
     
     message += `📅 *Дата создания:* ${window.getCurrentDate ? window.getCurrentDate() : new Date().toLocaleDateString('ru-RU')}\n`;
     message += `🕒 *Время:* ${new Date().toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'})}`;
@@ -311,7 +295,7 @@ async function sendPhotoMessage() {
         const formData = new FormData();
         formData.append('chat_id', window.APP_CONFIG.TELEGRAM_CHANNEL_ID);
         formData.append('photo', blob, 'client_photo.jpg');
-        formData.append('caption', `📸 Фото клиента для заказа ${window.AppState.user.orderId}\nКлиент: ${window.AppState.user.clientName || 'Не указан'}`);
+        formData.append('caption', `Фото клиента для заказа ${window.AppState.user.orderId}`);
         
         const url = `https://api.telegram.org/bot${window.APP_CONFIG.TELEGRAM_BOT_TOKEN}/sendPhoto`;
         
@@ -323,78 +307,10 @@ async function sendPhotoMessage() {
         if (!response.ok) {
             const error = await response.json();
             console.warn('Ошибка отправки фото:', error);
-        } else {
-            console.log('✅ Фото клиента отправлено');
         }
         
     } catch (error) {
         console.warn('Не удалось отправить фото:', error);
-    }
-}
-
-// НОВАЯ ФУНКЦИЯ: Отправка чека об оплате
-async function sendReceiptMessage() {
-    try {
-        // Получаем файл чека (сначала из временной переменной, потом из состояния)
-        const receiptFile = window.receiptFileToSend || window.AppState.user.receiptFile;
-        
-        if (!receiptFile) {
-            console.log('Чек не найден для отправки');
-            return;
-        }
-        
-        console.log('Отправка чека:', receiptFile.name);
-        
-        // Если у нас есть dataUrl, используем его, иначе создаем blob из файла
-        let blob;
-        if (receiptFile.dataUrl) {
-            // Конвертируем data URL в blob
-            const response = await fetch(receiptFile.dataUrl);
-            blob = await response.blob();
-        } else if (receiptFile.file) {
-            // Используем оригинальный файл
-            blob = receiptFile.file;
-        } else {
-            console.warn('Нет данных для отправки чека');
-            return;
-        }
-        
-        // Определяем расширение файла
-        const fileExt = receiptFile.name.split('.').pop() || 'jpg';
-        const fileName = `Чек_${window.AppState.user.orderId || 'заказ'}.${fileExt}`;
-        
-        const formData = new FormData();
-        formData.append('chat_id', window.APP_CONFIG.TELEGRAM_CHANNEL_ID);
-        formData.append('document', blob, fileName);
-        formData.append('caption', `💰 *ПОДТВЕРЖДЕНИЕ ОПЛАТЫ*\n\n` +
-            `🆔 Заказ: ${window.AppState.user.orderId || 'Не указан'}\n` +
-            `👤 Клиент: ${window.AppState.user.clientName || 'Не указан'}\n` +
-            `📧 Email: ${window.AppState.user.clientEmail || 'Не указан'}\n` +
-            `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n` +
-            `🕒 Время: ${new Date().toLocaleTimeString('ru-RU')}\n\n` +
-            `Файл: ${receiptFile.name} (${(receiptFile.size / 1024).toFixed(2)} KB)`);
-        
-        const url = `https://api.telegram.org/bot${window.APP_CONFIG.TELEGRAM_BOT_TOKEN}/sendDocument`;
-        
-        const response = await fetch(url, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            console.error('Ошибка отправки чека:', error);
-            throw new Error(`Ошибка отправки чека: ${error.description || 'Неизвестная ошибка'}`);
-        } else {
-            console.log('✅ Чек успешно отправлен в Telegram');
-            
-            // Отправляем также дополнительное уведомление
-            await sendTextMessage(`✅ *ЧЕК ПОЛУЧЕН*\n\nЗаказ: ${window.AppState.user.orderId}\nКлиент: ${window.AppState.user.clientName}\nФайл: ${receiptFile.name}`);
-        }
-        
-    } catch (error) {
-        console.error('Ошибка при отправке чека:', error);
-        throw error;
     }
 }
 
@@ -405,7 +321,7 @@ async function sendContractMessage(contractText) {
         const formData = new FormData();
         formData.append('chat_id', window.APP_CONFIG.TELEGRAM_CHANNEL_ID);
         formData.append('document', blob, `Договор_${window.AppState.user.orderId}.txt`);
-        formData.append('caption', `📄 *ДОГОВОР*\n\nЗаказ: ${window.AppState.user.orderId}\nКлиент: ${window.AppState.user.clientName || 'Не указан'}\nEmail: ${window.AppState.user.clientEmail || 'Не указан'}`);
+        formData.append('caption', `📄 Договор по заказу ${window.AppState.user.orderId}\nКлиент: ${window.AppState.user.clientName}`);
         
         const url = `https://api.telegram.org/bot${window.APP_CONFIG.TELEGRAM_BOT_TOKEN}/sendDocument`;
         
@@ -417,18 +333,9 @@ async function sendContractMessage(contractText) {
         if (!response.ok) {
             const error = await response.json();
             console.warn('Ошибка отправки договора:', error);
-        } else {
-            console.log('✅ Договор отправлен');
         }
         
     } catch (error) {
         console.warn('Не удалось отправить договор:', error);
     }
-}
-
-// Вспомогательная функция для получения текущей даты (если не определена)
-if (!window.getCurrentDate) {
-    window.getCurrentDate = function() {
-        return new Date().toLocaleDateString('ru-RU');
-    };
 }

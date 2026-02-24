@@ -123,44 +123,42 @@ window.ScreenManager = {
                         
                         <div class="payment-methods">
                             <div class="methods-header">
-                                <i class="fas fa-wallet"></i>
-                                <h3>Способы оплаты</h3>
+                                <i class="fas fa-info-circle"></i>
+                                <h3>Способ оплаты</h3>
                             </div>
-                            <div class="methods-grid">
-                                <div class="method-card" data-method="bank-card">
-                                    <div class="method-icon">
-                                        <i class="fas fa-credit-card"></i>
-                                    </div>
-                                    <div class="method-info">
-                                        <div class="method-name">Банковская карта</div>
-                                        <div class="method-description">Visa, Mastercard, Мир</div>
-                                    </div>
+                            <div class="payment-info-card">
+                                <div class="info-icon">
+                                    <i class="fas fa-university"></i>
                                 </div>
-                                <div class="method-card" data-method="yoomoney">
-                                    <div class="method-icon">
-                                        <i class="fas fa-wallet"></i>
+                                <div class="info-content">
+                                    <h4>Перевод по номеру телефона</h4>
+                                    <p>На данный момент онлайн-оплата находится в разработке. Для завершения заказа, пожалуйста, выполните перевод по номеру телефона в Т-Банк (бывший Тинькофф):</p>
+                                    
+                                    <div class="bank-details">
+                                        <div class="detail-row">
+                                            <span class="detail-label">Банк:</span>
+                                            <span class="detail-value">Т-Банк (Тинькофф)</span>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-label">Номер телефона:</span>
+                                            <span class="detail-value highlight">8 (977) 714-53-25</span>
+                                            <button class="copy-btn" id="copyPhoneBtn">
+                                                <i class="far fa-copy"></i>
+                                            </button>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-label">Получатель:</span>
+                                            <span class="detail-value">Константин С.</span>
+                                        </div>
+                                        <div class="detail-row">
+                                            <span class="detail-label">Сумма:</span>
+                                            <span class="detail-value price">${format ? format.price.toLocaleString() + ' ₽' : '12 000 ₽'}</span>
+                                        </div>
                                     </div>
-                                    <div class="method-info">
-                                        <div class="method-name">ЮMoney</div>
-                                        <div class="method-description">Кошелёк или карта</div>
-                                    </div>
-                                </div>
-                                <div class="method-card" data-method="sberbank">
-                                    <div class="method-icon">
-                                        <i class="fas fa-university"></i>
-                                    </div>
-                                    <div class="method-info">
-                                        <div class="method-name">Сбербанк Онлайн</div>
-                                        <div class="method-description">По QR-коду или номеру телефона</div>
-                                    </div>
-                                </div>
-                                <div class="method-card" data-method="tinkoff">
-                                    <div class="method-icon">
+                                    
+                                    <div class="payment-note-important" style="background: #e3f2fd; border-color: #90caf9;">
                                         <i class="fas fa-mobile-alt"></i>
-                                    </div>
-                                    <div class="method-info">
-                                        <div class="method-name">Тинькофф</div>
-                                        <div class="method-description">По номеру телефона</div>
+                                        <span>Если у вас нет Т-Банка, перевод можно сделать через СБП (Система быстрых платежей) любого банка по номеру телефона</span>
                                     </div>
                                 </div>
                             </div>
@@ -170,17 +168,32 @@ window.ScreenManager = {
                     <div class="payment-action">
                         <div class="action-card">
                             <div class="action-header">
-                                <i class="fas fa-lock"></i>
-                                <h3>Безопасная оплата</h3>
+                                <i class="fas fa-file-invoice"></i>
+                                <h3>Подтверждение оплаты</h3>
                             </div>
                             <div class="action-content">
-                                <div class="security-info">
-                                    <i class="fas fa-shield-alt"></i>
-                                    <span>Все платежи защищены SSL-шифрованием</span>
-                                </div>
-                                <div class="privacy-info">
-                                    <i class="fas fa-user-shield"></i>
-                                    <span>Ваши данные не передаются третьим лицам</span>
+                                <div class="upload-receipt-section">
+                                    <p>После выполнения перевода, пожалуйста, загрузите скриншот подтверждения оплаты:</p>
+                                    
+                                    <div class="receipt-upload-area" id="receiptUploadArea">
+                                        <input type="file" id="receiptFile" accept="image/*" style="display: none;">
+                                        <div class="upload-placeholder" id="uploadPlaceholder">
+                                            <i class="fas fa-cloud-upload-alt"></i>
+                                            <span>Нажмите для загрузки скриншота</span>
+                                            <span class="file-types">Поддерживаются JPG, PNG</span>
+                                        </div>
+                                        <div class="upload-preview" id="uploadPreview" style="display: none;">
+                                            <i class="fas fa-file-image"></i>
+                                            <span id="fileName"></span>
+                                            <button class="remove-file" id="removeFileBtn">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="fileSizeError" class="file-error" style="display: none; color: #e74c3c; font-size: 13px; margin-top: 5px;">
+                                        <i class="fas fa-exclamation-triangle"></i> Файл слишком большой. Максимальный размер: 5 MB
+                                    </div>
                                 </div>
                                 
                                 <div class="payment-terms">
@@ -189,20 +202,20 @@ window.ScreenManager = {
                                         <label for="agreePaymentTerms">
                                             <span class="checkmark"></span>
                                             <span class="checkbox-text">
-                                                Я согласен с условиями оказания услуг и политикой конфиденциальности
+                                                Я подтверждаю, что выполнил(а) перевод согласно условиям договора
                                             </span>
                                         </label>
                                     </div>
                                 </div>
                                 
-                                <button class="btn btn-primary btn-lg" id="processPaymentBtn">
-                                    <i class="fas fa-lock"></i>
-                                    Перейти к безопасной оплате
+                                <button class="btn btn-primary btn-lg" id="processPaymentBtn" disabled>
+                                    <i class="fas fa-check-circle"></i>
+                                    Отправить подтверждение
                                 </button>
                                 
                                 <div class="payment-note">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span>После успешной оплаты вы сразу получите доступ к результатам</span>
+                                    <i class="fas fa-clock"></i>
+                                    <span>После проверки оплаты администратором (обычно в течение 1-2 часов) вы получите доступ к результатам на email</span>
                                 </div>
                             </div>
                         </div>
@@ -220,7 +233,7 @@ window.ScreenManager = {
                 
                 <div class="help-tip">
                     <i class="fas fa-info-circle"></i>
-                    <span>Оплата происходит через защищенное соединение. После оплаты результаты будут отправлены вам на email и доступны в личном кабинете.</span>
+                    <span>Оплата производится переводом по номеру телефона в Т-Банк согласно договору-оферте. После загрузки скриншота администратор проверит оплату и активирует доступ к результатам.</span>
                 </div>
             </div>
         `;
@@ -236,6 +249,8 @@ window.ScreenManager = {
     
     // Инициализация событий оплаты
     initPaymentEvents() {
+        console.log('Инициализация событий оплаты');
+        
         // Кнопка "Назад"
         const prevBtn = document.getElementById('paymentPrevBtn');
         if (prevBtn) {
@@ -252,20 +267,93 @@ window.ScreenManager = {
             });
         }
         
-        // Выбор способа оплаты
-        const methodCards = document.querySelectorAll('.method-card');
-        methodCards.forEach(card => {
-            card.addEventListener('click', () => {
-                methodCards.forEach(c => c.classList.remove('selected'));
-                card.classList.add('selected');
+        // Кнопка копирования номера телефона
+        const copyBtn = document.getElementById('copyPhoneBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                const phoneNumber = '89777145325'; // Номер без форматирования для копирования
+                navigator.clipboard.writeText(phoneNumber).then(() => {
+                    this.showNotification('Номер телефона скопирован', false);
+                    
+                    // Визуальная обратная связь
+                    const originalHtml = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalHtml;
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Ошибка копирования:', err);
+                    this.showNotification('Не удалось скопировать номер', true);
+                });
             });
-        });
+        }
         
-        // Кнопка оплаты
-        const paymentBtn = document.getElementById('processPaymentBtn');
-        if (paymentBtn) {
-            paymentBtn.addEventListener('click', async () => {
-                await this.processPayment();
+        // Загрузка файла чека
+        const fileInput = document.getElementById('receiptFile');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+        const uploadPreview = document.getElementById('uploadPreview');
+        const fileNameSpan = document.getElementById('fileName');
+        const removeFileBtn = document.getElementById('removeFileBtn');
+        const fileSizeError = document.getElementById('fileSizeError');
+        
+        if (fileInput && uploadPlaceholder) {
+            // Клик по области загрузки
+            uploadPlaceholder.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            // Drag and drop
+            const uploadArea = document.getElementById('receiptUploadArea');
+            
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    fileInput.files = e.dataTransfer.files;
+                    this.handleFileSelect(e.dataTransfer.files[0]);
+                }
+            });
+            
+            // Обработка выбора файла
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    this.handleFileSelect(e.target.files[0]);
+                }
+            });
+        }
+        
+        // Кнопка удаления файла
+        if (removeFileBtn) {
+            removeFileBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Предотвращаем всплытие события
+                
+                if (fileInput) {
+                    fileInput.value = '';
+                }
+                if (uploadPreview) {
+                    uploadPreview.style.display = 'none';
+                }
+                if (uploadPlaceholder) {
+                    uploadPlaceholder.style.display = 'flex';
+                }
+                if (fileSizeError) {
+                    fileSizeError.style.display = 'none';
+                }
+                
+                // Удаляем файл из состояния
+                AppState.user.receiptFile = null;
+                
+                this.updatePaymentButton();
             });
         }
         
@@ -277,6 +365,66 @@ window.ScreenManager = {
             });
         }
         
+        // Кнопка отправки подтверждения
+        const paymentBtn = document.getElementById('processPaymentBtn');
+        if (paymentBtn) {
+            paymentBtn.addEventListener('click', async () => {
+                await this.processPayment();
+            });
+        }
+        
+        this.updatePaymentButton();
+    },
+    
+    // Обработка выбора файла
+    handleFileSelect(file) {
+        const fileSizeError = document.getElementById('fileSizeError');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+        const uploadPreview = document.getElementById('uploadPreview');
+        const fileNameSpan = document.getElementById('fileName');
+        
+        // Проверка размера файла (максимум 5 MB)
+        const maxSize = 5 * 1024 * 1024; // 5 MB
+        if (file.size > maxSize) {
+            if (fileSizeError) {
+                fileSizeError.style.display = 'block';
+            }
+            return;
+        }
+        
+        if (fileSizeError) {
+            fileSizeError.style.display = 'none';
+        }
+        
+        // Проверка типа файла
+        if (!file.type.startsWith('image/')) {
+            this.showNotification('Пожалуйста, выберите изображение (JPG или PNG)', true);
+            return;
+        }
+        
+        // Сохраняем файл в состоянии приложения
+        AppState.user.receiptFile = {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            file: file, // Сохраняем сам файл для последующей отправки
+            dataUrl: null // Здесь будет data URL после чтения файла
+        };
+        
+        // Читаем файл для отправки
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            AppState.user.receiptFile.dataUrl = e.target.result;
+        };
+        reader.readAsDataURL(file);
+        
+        // Показываем превью
+        if (uploadPlaceholder && uploadPreview && fileNameSpan) {
+            uploadPlaceholder.style.display = 'none';
+            fileNameSpan.textContent = file.name;
+            uploadPreview.style.display = 'flex';
+        }
+        
         this.updatePaymentButton();
     },
     
@@ -286,7 +434,8 @@ window.ScreenManager = {
         const paymentBtn = document.getElementById('processPaymentBtn');
         
         if (agreeCheckbox && paymentBtn) {
-            paymentBtn.disabled = !agreeCheckbox.checked;
+            const hasFile = AppState.user.receiptFile !== null;
+            paymentBtn.disabled = !(agreeCheckbox.checked && hasFile);
         }
     },
     
@@ -296,35 +445,51 @@ window.ScreenManager = {
         if (!paymentBtn) return;
         
         const originalText = paymentBtn.innerHTML;
-        paymentBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Обработка оплаты...';
+        paymentBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка подтверждения...';
         paymentBtn.disabled = true;
         
         try {
-            // 1. Сначала отправляем данные в Telegram
+            // Сохраняем данные о подтверждении оплаты
+            AppState.user.paymentConfirmed = true;
+            AppState.user.paymentDate = new Date().toISOString();
+            
+            // Отправляем данные в Telegram с загруженным чеком
             if (typeof window.sendOrderToTelegram === 'function') {
+                // Передаем файл чека для отправки
+                if (AppState.user.receiptFile && AppState.user.receiptFile.file) {
+                    // Сохраняем файл в глобальной переменной для доступа из telegram.js
+                    window.receiptFileToSend = AppState.user.receiptFile;
+                }
+                
                 await window.sendOrderToTelegram();
                 console.log('✅ Данные отправлены в Telegram');
+                
+                // Очищаем временную переменную
+                delete window.receiptFileToSend;
             } else {
                 console.warn('Функция отправки в Telegram не найдена');
+                
+                // Если функция не найдена, имитируем успешную отправку
+                console.log('Имитация отправки чека:', AppState.user.receiptFile?.name);
             }
             
-            // 2. Имитация успешной оплаты (заглушка)
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Имитация отправки на сервер
+            await new Promise(resolve => setTimeout(resolve, 1500));
             
-            // 3. Обновляем состояние
-            AppState.user.paymentCompleted = true;
+            // Показываем успешное сообщение
+            this.showNotification('Подтверждение оплаты отправлено! Администратор проверит платеж в ближайшее время.', false);
             
-            // 4. Показываем успешное сообщение
-            ScreenManager.showNotification('Оплата успешно завершена!', false);
+            // Обновляем состояние (но не помечаем как оплаченный полностью)
+            AppState.user.paymentUnderReview = true;
             
-            // 5. Переходим на экран результатов
+            // Переходим на экран результатов с пометкой "на проверке"
             setTimeout(() => {
-                Screen5.render();
-            }, 1000);
+                Screen5.render({ paymentUnderReview: true });
+            }, 2000);
             
         } catch (error) {
-            console.error('Ошибка обработки оплаты:', error);
-            ScreenManager.showNotification('Ошибка обработки оплаты: ' + error.message, true);
+            console.error('Ошибка отправки подтверждения:', error);
+            this.showNotification('Ошибка отправки подтверждения: ' + error.message, true);
             
             paymentBtn.innerHTML = originalText;
             paymentBtn.disabled = false;
