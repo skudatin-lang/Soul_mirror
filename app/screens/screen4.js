@@ -1,11 +1,11 @@
-// Экран 4: Договор
+// Экран 4: Договор (с улучшенной безопасностью)
 window.Screen4 = {
     // Рендеринг экрана
     render() {
         const container = document.getElementById('app-container');
         container.innerHTML = this.getHTML();
         
-        // Инициализация событий ДОЛЖНА БЫТЬ ПОСЛЕ рендеринга
+        // Инициализация событий
         setTimeout(() => {
             this.initEvents();
         }, 100);
@@ -17,13 +17,44 @@ window.Screen4 = {
                 this.showPreviewSection();
             }, 200);
         }
+        
+        // Генерируем CSRF токен
+        if (window.Security) {
+            window.Security.generateCsrfToken();
+        }
     },
     
-    // HTML экрана
+    // HTML экрана с безопасной вставкой
     getHTML() {
         const format = AppState.getSelectedFormat();
         const totalQuestions = AppState.data.questionnaire ? AppState.data.questionnaire.length : 0;
         const answeredQuestions = AppState.user.questionnaireAnswers.filter(a => a !== undefined).length;
+        
+        // Безопасное экранирование всех данных, которые вставляются в HTML
+        const safeClientName = window.Security ? 
+            window.Security.escapeHtml(AppState.user.clientName || '') : 
+            (AppState.user.clientName || '');
+            
+        const safeClientEmail = window.Security ? 
+            window.Security.escapeHtml(AppState.user.clientEmail || '') : 
+            (AppState.user.clientEmail || '');
+            
+        const safeClientPhone = window.Security ? 
+            window.Security.escapeHtml(AppState.user.clientPhone || '') : 
+            (AppState.user.clientPhone || '');
+            
+        const safeFormatName = format ? 
+            (window.Security ? window.Security.escapeHtml(format.name) : format.name) : 
+            'Не выбран';
+            
+        const safeArchetypeName = AppState.user.archetype ? 
+            (window.Security ? window.Security.escapeHtml(AppState.user.archetype.name) : AppState.user.archetype.name) : 
+            'Не определен';
+        
+        // Безопасное форматирование цены
+        const safePrice = format && format.price ? 
+            format.price.toLocaleString() + ' ₽' : 
+            '0 ₽';
         
         return `
             <div class="screen active" id="screen4">
@@ -55,7 +86,7 @@ window.Screen4 = {
                             <div class="summary-content">
                                 <div class="summary-row">
                                     <span class="label">Выбранный формат:</span>
-                                    <span class="value" id="summaryFormat">${format ? format.name : 'Не выбран'}</span>
+                                    <span class="value" id="summaryFormat">${safeFormatName}</span>
                                 </div>
                                 <div class="summary-row">
                                     <span class="label">Прогресс анкеты:</span>
@@ -63,11 +94,11 @@ window.Screen4 = {
                                 </div>
                                 <div class="summary-row">
                                     <span class="label">Определенный архетип:</span>
-                                    <span class="value archetype-value">${AppState.user.archetype ? AppState.user.archetype.name : 'Не определен'}</span>
+                                    <span class="value archetype-value">${safeArchetypeName}</span>
                                 </div>
                                 <div class="summary-row total">
                                     <span class="label">Итоговая стоимость:</span>
-                                    <span class="value price-value">${format ? format.price.toLocaleString() + ' ₽' : '0 ₽'}</span>
+                                    <span class="value price-value">${safePrice}</span>
                                 </div>
                             </div>
                         </div>
@@ -96,8 +127,10 @@ window.Screen4 = {
                                            class="form-input" 
                                            id="clientName" 
                                            placeholder="Иванов Иван Иванович"
-                                           value="${AppState.user.clientName || ''}"
-                                           autocomplete="name">
+                                           value="${safeClientName}"
+                                           autocomplete="name"
+                                           maxlength="100"
+                                           pattern="[a-zA-Zа-яА-ЯёЁ\s\-\.]+">
                                     <div class="input-icon">
                                         <i class="fas fa-check-circle ${AppState.user.clientName ? 'valid' : ''}"></i>
                                     </div>
@@ -116,8 +149,9 @@ window.Screen4 = {
                                            class="form-input" 
                                            id="clientEmail" 
                                            placeholder="example@mail.ru"
-                                           value="${AppState.user.clientEmail || ''}"
-                                           autocomplete="email">
+                                           value="${safeClientEmail}"
+                                           autocomplete="email"
+                                           maxlength="100">
                                     <div class="input-icon">
                                         <i class="fas fa-check-circle ${this.isValidEmail(AppState.user.clientEmail || '') ? 'valid' : ''}"></i>
                                     </div>
@@ -135,8 +169,9 @@ window.Screen4 = {
                                            class="form-input" 
                                            id="clientPhone" 
                                            placeholder="+7 (999) 123-45-67"
-                                           value="${AppState.user.clientPhone || ''}"
-                                           autocomplete="tel">
+                                           value="${safeClientPhone}"
+                                           autocomplete="tel"
+                                           maxlength="20">
                                     <div class="input-icon">
                                         <i class="fas fa-check-circle ${this.isValidPhone(AppState.user.clientPhone || '') ? 'valid' : ''}"></i>
                                     </div>
@@ -253,7 +288,7 @@ window.Screen4 = {
             });
         }
         
-        // Кнопка "Далее" (теперь ведет на оплату)
+        // Кнопка "Далее"
         const nextBtn = document.getElementById('nextBtn');
         if (nextBtn) {
             nextBtn.addEventListener('click', () => {
@@ -319,7 +354,7 @@ window.Screen4 = {
         }, 150);
     },
     
-    // Валидация поля ввода
+    // Валидация поля ввода с использованием Security модуля
     validateInput(fieldId) {
         const input = document.getElementById(fieldId);
         const icon = input ? input.parentNode.querySelector('.input-icon i') : null;
@@ -329,17 +364,33 @@ window.Screen4 = {
         let isValid = false;
         const value = input.value.trim();
         
-        switch(fieldId) {
-            case 'clientName':
-                isValid = value.length >= 2;
-                break;
-            case 'clientEmail':
-                isValid = this.isValidEmail(value);
-                break;
-            case 'clientPhone':
-                // Телефон опционален, но если введен - проверяем
-                isValid = value === '' || this.isValidPhone(value);
-                break;
+        // Используем Security модуль для валидации
+        if (window.Security) {
+            switch(fieldId) {
+                case 'clientName':
+                    isValid = window.Security.validateName(value);
+                    break;
+                case 'clientEmail':
+                    isValid = window.Security.validateEmail(value);
+                    break;
+                case 'clientPhone':
+                    // Телефон опционален, но если введен - проверяем
+                    isValid = value === '' || window.Security.validatePhone(value);
+                    break;
+            }
+        } else {
+            // Fallback валидация
+            switch(fieldId) {
+                case 'clientName':
+                    isValid = value.length >= 2;
+                    break;
+                case 'clientEmail':
+                    isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+                    break;
+                case 'clientPhone':
+                    isValid = value === '' || value.replace(/\D/g, '').length >= 10;
+                    break;
+            }
         }
         
         // Обновляем иконку
@@ -354,15 +405,20 @@ window.Screen4 = {
         input.classList.toggle('invalid', !isValid && value !== '');
     },
     
-    // Проверка email
+    // Проверка email (используем Security если доступен)
     isValidEmail(email) {
+        if (window.Security) {
+            return window.Security.validateEmail(email);
+        }
         const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return re.test(email);
     },
     
-    // Проверка телефона
+    // Проверка телефона (используем Security если доступен)
     isValidPhone(phone) {
-        // Простая проверка - минимум 10 цифр
+        if (window.Security) {
+            return window.Security.validatePhone(phone);
+        }
         const digits = phone.replace(/\D/g, '');
         return digits.length >= 10;
     },
@@ -383,10 +439,16 @@ window.Screen4 = {
             return false;
         }
         
-        const isValid = name.value.trim() && 
-                       this.isValidEmail(email.value.trim()) && 
-                       agreeData.checked && 
-                       agreeContract.checked;
+        // Используем валидацию через Security
+        const isValidName = window.Security ? 
+            window.Security.validateName(name.value.trim()) : 
+            name.value.trim().length >= 2;
+            
+        const isValidEmail = window.Security ? 
+            window.Security.validateEmail(email.value.trim()) : 
+            this.isValidEmail(email.value.trim());
+        
+        const isValid = isValidName && isValidEmail && agreeData.checked && agreeContract.checked;
         
         const generateBtn = document.getElementById('generateContractBtn');
         if (generateBtn) {
@@ -396,17 +458,27 @@ window.Screen4 = {
         return isValid;
     },
     
-    // Генерация договора
+    // Генерация договора с валидацией
     generateContract() {
         if (!this.checkFormCompletion()) {
             ScreenManager.showNotification('Пожалуйста, заполните все обязательные поля корректно', true);
             return;
         }
         
-        // Сохраняем данные клиента
-        AppState.user.clientName = document.getElementById('clientName').value.trim();
-        AppState.user.clientEmail = document.getElementById('clientEmail').value.trim();
-        AppState.user.clientPhone = document.getElementById('clientPhone').value.trim();
+        // Получаем значения и очищаем от потенциально опасного кода
+        const nameInput = document.getElementById('clientName');
+        const emailInput = document.getElementById('clientEmail');
+        const phoneInput = document.getElementById('clientPhone');
+        
+        // Экранируем перед сохранением (хотя данные уже экранированы при вставке)
+        const rawName = nameInput ? nameInput.value.trim() : '';
+        const rawEmail = emailInput ? emailInput.value.trim() : '';
+        const rawPhone = phoneInput ? phoneInput.value.trim() : '';
+        
+        // Сохраняем данные клиента (без экранирования, так как это внутренние данные)
+        AppState.user.clientName = rawName;
+        AppState.user.clientEmail = rawEmail;
+        AppState.user.clientPhone = rawPhone;
         
         // Генерируем ID заказа
         if (!AppState.user.orderId) {
@@ -470,7 +542,6 @@ window.Screen4 = {
         }
         if (signature) {
             signature.style.display = 'block';
-            // Анимация появления
             setTimeout(() => {
                 signature.classList.add('active');
             }, 100);
@@ -495,12 +566,11 @@ window.Screen4 = {
             return;
         }
         
-        // Используем новую функцию для генерации HTML договора
+        // Используем функцию для генерации HTML договора
         if (typeof generateContractHTML === 'function') {
             const contractHTML = generateContractHTML();
             container.innerHTML = contractHTML;
             
-            // Показываем контент с анимацией
             setTimeout(() => {
                 container.classList.add('active');
             }, 100);
@@ -523,7 +593,6 @@ window.Screen4 = {
             navigator.clipboard.writeText(contractText).then(() => {
                 ScreenManager.showNotification('Договор скопирован в буфер обмена!', false);
                 
-                // Визуальная обратная связь
                 const copyBtn = document.getElementById('copyContractBtn');
                 const originalText = copyBtn.innerHTML;
                 copyBtn.innerHTML = '<i class="fas fa-check"></i> Скопировано!';
@@ -569,7 +638,7 @@ window.Screen4 = {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Договор-оферта № ${AppState.user.orderId}</title>
+                <title>Договор-оферта № ${window.Security ? window.Security.escapeHtml(AppState.user.orderId) : AppState.user.orderId}</title>
                 <style>
                     @import url('https://fonts.googleapis.com/css2?family=PT+Serif&display=swap');
                     

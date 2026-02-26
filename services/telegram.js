@@ -1,4 +1,4 @@
-// telegram.js - отправка данных в Telegram (обновлённая версия с отправкой чека)
+// telegram.js - отправка данных в Telegram (исправленная версия с отправкой чека)
 window.sendOrderToTelegram = async function() {
     try {
         // Загружаем Telegram конфигурацию если еще не загружена
@@ -17,6 +17,8 @@ window.sendOrderToTelegram = async function() {
             throw new Error('Данные заказа не найдены');
         }
         
+        console.log('📤 Начинаем отправку данных в Telegram...');
+        
         // Формируем расширенное сообщение
         const message = formatTelegramMessage();
         
@@ -34,17 +36,25 @@ window.sendOrderToTelegram = async function() {
         
         // Отправляем чек об оплате, если он был загружен
         if (window.receiptFileToSend || window.AppState.user.receiptFile) {
-            await sendReceiptMessage();
+            console.log('📎 Обнаружен чек для отправки');
+            const receiptSent = await sendReceiptMessage();
+            if (receiptSent) {
+                console.log('✅ Чек успешно отправлен');
+            } else {
+                console.warn('⚠️ Не удалось отправить чек, но продолжаем');
+            }
+        } else {
+            console.log('ℹ️ Чек не найден для отправки');
         }
         
         // Отправляем сводку результатов
         await sendResultsSummary();
         
-        console.log('Данные успешно отправлены в Telegram');
+        console.log('✅ Все данные успешно отправлены в Telegram');
         return true;
         
     } catch (error) {
-        console.error('Ошибка отправки в Telegram:', error);
+        console.error('❌ Ошибка отправки в Telegram:', error);
         throw error;
     }
 };
@@ -58,100 +68,86 @@ function formatTelegramMessage() {
     const pose = window.AppState.getSelectedPose ? window.AppState.getSelectedPose() : null;
     const results = window.AppState.user.archetypeResults || {};
     
+    // Экранируем все пользовательские данные для Markdown
+    const escapeMarkdown = (text) => {
+        if (!text) return '';
+        return String(text)
+            .replace(/_/g, '\\_')
+            .replace(/\*/g, '\\*')
+            .replace(/\[/g, '\\[')
+            .replace(/\]/g, '\\]')
+            .replace(/\(/g, '\\(')
+            .replace(/\)/g, '\\)')
+            .replace(/~/g, '\\~')
+            .replace(/`/g, '\\`')
+            .replace(/>/g, '\\>')
+            .replace(/#/g, '\\#')
+            .replace(/\+/g, '\\+')
+            .replace(/-/g, '\\-')
+            .replace(/=/g, '\\=')
+            .replace(/\|/g, '\\|')
+            .replace(/\{/g, '\\{')
+            .replace(/\}/g, '\\}')
+            .replace(/\./g, '\\.')
+            .replace(/!/g, '\\!');
+    };
+    
+    const safeClientName = escapeMarkdown(window.AppState.user.clientName || 'Не указано');
+    const safeClientEmail = escapeMarkdown(window.AppState.user.clientEmail || 'Не указано');
+    const safeClientPhone = window.AppState.user.clientPhone ? escapeMarkdown(window.AppState.user.clientPhone) : '';
+    const safeOrderId = escapeMarkdown(window.AppState.user.orderId || 'Не сгенерирован');
+    const safeFormatName = format ? escapeMarkdown(format.name) : '3D модель Зеркало Души';
+    const safePoseName = pose ? escapeMarkdown(pose.name) : 'Стандартная поза';
+    const safeArchetype = results.dominantArchetype ? escapeMarkdown(results.dominantArchetype) : 'Не определен';
+    
     let message = `🎯 *НОВЫЙ ЗАКАЗ ЗЕРКАЛО ДУШИ*\n\n`;
     
-    // Информация о клиенте
-    message += `👤 *Клиент:* ${window.AppState.user.clientName || 'Не указано'}\n`;
-    message += `📧 *Email:* ${window.AppState.user.clientEmail || 'Не указано'}\n`;
-    if (window.AppState.user.clientPhone) {
-        message += `📱 *Телефон:* ${window.AppState.user.clientPhone}\n`;
+    message += `👤 *Клиент:* ${safeClientName}\n`;
+    message += `📧 *Email:* ${safeClientEmail}\n`;
+    if (safeClientPhone) {
+        message += `📱 *Телефон:* ${safeClientPhone}\n`;
     }
-    message += `🆔 *ID заказа:* ${window.AppState.user.orderId || 'Не сгенерирован'}\n\n`;
+    message += `🆔 *ID заказа:* ${safeOrderId}\n\n`;
     
-    // Детали заказа
     message += `📋 *Детали заказа:*\n`;
-    message += `• Формат: ${format ? format.name : '3D модель Зеркало Души'}\n`;
+    message += `• Формат: ${safeFormatName}\n`;
     
-    // Детальное описание позы
     if (pose) {
-        message += `• Поза: ${pose.name}\n`;
+        message += `• Поза: ${safePoseName}\n`;
         if (pose.description) {
-            message += `  Описание: ${pose.description}\n`;
+            message += `  Описание: ${escapeMarkdown(pose.description)}\n`;
         }
-        if (pose.keywords) {
-            message += `  Ключевые слова: ${pose.keywords}\n`;
-        }
-    } else {
-        message += `• Поза: Стандартная поза\n`;
     }
     
-    message += `• Стоимость: ${format ? format.price.toLocaleString() : '12 000'} ₽\n`;
+    const safePrice = format && format.price ? 
+        format.price.toLocaleString() : '12 000';
+    message += `• Стоимость: ${safePrice} ₽\n`;
     
-    // Результаты анкеты
     if (results.dominantArchetype) {
         message += `\n🧙‍♂️ *РЕЗУЛЬТАТЫ АНКЕТЫ:*\n`;
+        message += `• Основной архетип: ${safeArchetype}\n`;
         
-        // Все активные архетипы
-        const activeArchetypes = [];
-        if (results.archetypeScores) {
-            for (const [archetype, score] of Object.entries(results.archetypeScores)) {
-                const count = results.archetypeCounts[archetype] || 1;
-                const avg = score / count;
-                if (avg >= 4) {
-                    activeArchetypes.push({
-                        name: archetype,
-                        score: avg.toFixed(1)
-                    });
-                }
-            }
-        }
-        
-        if (activeArchetypes.length > 0) {
-            message += `• Активные архетипы (≥4 баллов):\n`;
-            activeArchetypes.forEach((arch, index) => {
-                message += `  ${index + 1}. ${arch.name} - ${arch.score}/5\n`;
-            });
-            
-            // Основной архетип (с максимальным баллом)
-            if (results.dominantArchetype) {
-                message += `\n• Основной архетип: ${results.dominantArchetype} (${results.dominantArchetypeScore ? results.dominantArchetypeScore.toFixed(1) : '0'}/5)\n`;
-            }
-            
-            // Дуэль архетипов если есть
-            if (results.duelArchetypes && results.duelArchetypes.length === 2) {
-                message += `• Дуэль архетипов: ${results.duelArchetypes.join(' + ')}\n`;
-            }
-        } else if (results.dominantArchetype) {
-            message += `• Основной архетип: ${results.dominantArchetype}\n`;
-        }
-        
-        message += `• Общий балл: ${results.totalScore || 0} / ${results.answeredQuestions ? results.answeredQuestions * 5 : 0}\n`;
-        message += `• Средний балл: ${results.averageScore || 0}/5\n`;
-        
-        if (results.lowestDomain) {
-            const domainName = window.AppState.getDomainName ? 
-                window.AppState.getDomainName(results.lowestDomain) : results.lowestDomain;
-            message += `• Сфера внимания: ${domainName}\n`;
+        if (results.averageScore) {
+            message += `• Средний балл: ${results.averageScore}/5\n`;
         }
     }
     
-    // Информация об оплате
-    if (window.AppState.user.receiptFile || window.receiptFileToSend) {
+    // Информация о чеке
+    const receiptFile = window.receiptFileToSend || window.AppState.user.receiptFile;
+    if (receiptFile) {
         message += `\n💰 *СТАТУС ОПЛАТЫ:*\n`;
         message += `• Подтверждение оплаты: ЗАГРУЖЕНО\n`;
-        if (window.AppState.user.receiptFile) {
-            message += `• Файл чека: ${window.AppState.user.receiptFile.name}\n`;
-        }
+        message += `• Файл чека: ${escapeMarkdown(receiptFile.name || 'чек')}\n`;
     } else {
         message += `\n💰 *СТАТУС ОПЛАТЫ:* Ожидает подтверждения\n`;
     }
     
-    // Статус договора
     message += `\n📝 *Договор:* Сформирован автоматически\n`;
     message += `✅ *Статус:* ${window.AppState.user.paymentUnderReview ? 'На проверке оплаты' : 'Ожидает оплаты'}\n\n`;
     
-    message += `📅 *Дата создания:* ${window.getCurrentDate ? window.getCurrentDate() : new Date().toLocaleDateString('ru-RU')}\n`;
-    message += `🕒 *Время:* ${new Date().toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'})}`;
+    const currentDate = new Date();
+    message += `📅 *Дата создания:* ${currentDate.toLocaleDateString('ru-RU')}\n`;
+    message += `🕒 *Время:* ${currentDate.toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'})}`;
     
     return message;
 }
@@ -161,12 +157,23 @@ async function sendResultsSummary() {
         const results = window.AppState.user.archetypeResults;
         if (!results) return;
         
+        const escapeMarkdown = (text) => {
+            if (!text) return '';
+            return String(text)
+                .replace(/_/g, '\\_')
+                .replace(/\*/g, '\\*')
+                .replace(/\[/g, '\\[')
+                .replace(/\]/g, '\\]')
+                .replace(/\(/g, '\\(')
+                .replace(/\)/g, '\\)')
+                .replace(/~/g, '\\~')
+                .replace(/`/g, '\\`');
+        };
+        
         let summary = `📊 *ДЕТАЛЬНАЯ СВОДКА РЕЗУЛЬТАТОВ*\n\n`;
         
-        // Архетипы - детальная информация
         summary += `🧙‍♂️ *АРХЕТИПЫ:*\n`;
         if (results.archetypeScores) {
-            // Сортируем по среднему баллу
             const archetypeEntries = Object.entries(results.archetypeScores);
             archetypeEntries.sort((a, b) => {
                 const avgA = results.archetypeCounts[a[0]] ? a[1] / results.archetypeCounts[a[0]] : 0;
@@ -180,33 +187,21 @@ async function sendResultsSummary() {
                 const isActive = avg >= 4;
                 const marker = isActive ? '✅' : '➖';
                 const isDominant = archetype === results.dominantArchetype;
-                const isInDuel = results.duelArchetypes && results.duelArchetypes.includes(archetype);
                 
                 let prefix = '';
                 if (isDominant) prefix = '★ ';
-                if (isInDuel) prefix = '⚔️ ';
                 
-                summary += `${marker} ${prefix}${archetype}: ${avg}/5 (${score} баллов за ${count} вопросов)\n`;
-                
-                // Добавляем описание для активных архетипов
-                if (isActive && window.AppState.data.archetypes) {
-                    const archetypeData = window.AppState.data.archetypes[archetype];
-                    if (archetypeData && archetypeData.short_description) {
-                        summary += `   ${archetypeData.short_description.substring(0, 60)}...\n`;
-                    }
-                }
+                summary += `${marker} ${prefix}${escapeMarkdown(archetype)}: ${avg}/5 (${score} баллов за ${count} вопросов)\n`;
             }
         }
         
-        // Сферы
         summary += `\n⚖️ *ЦЕЛОСТНОСТЬ ПО СФЕРАМ:*\n`;
         if (results.domainScores) {
-            // Сортируем по среднему баллу
             const domainEntries = Object.entries(results.domainScores);
             domainEntries.sort((a, b) => {
                 const avgA = results.domainCounts[a[0]] ? a[1] / results.domainCounts[a[0]] : 0;
                 const avgB = results.domainCounts[b[0]] ? b[1] / results.domainCounts[b[0]] : 0;
-                return avgA - avgB; // От меньшего к большему
+                return avgA - avgB;
             });
             
             for (const [domain, score] of domainEntries) {
@@ -222,29 +217,10 @@ async function sendResultsSummary() {
                 
                 const focusMarker = domain === results.lowestDomain ? ' [ФОКУС]' : '';
                 const strengthMarker = domain === results.highestDomain ? ' [СИЛА]' : '';
-                summary += `• ${domainName}: ${avg} баллов (${status})${focusMarker}${strengthMarker}\n`;
+                summary += `• ${escapeMarkdown(domainName)}: ${avg} баллов (${status})${focusMarker}${strengthMarker}\n`;
             }
         }
         
-        // Рекомендации
-        if (results.recommendations && results.recommendations.length > 0) {
-            summary += `\n🧭 *КЛЮЧЕВЫЕ РЕКОМЕНДАЦИИ:*\n`;
-            results.recommendations.slice(0, 5).forEach((rec, index) => {
-                summary += `${index + 1}. ${rec}\n`;
-            });
-        }
-        
-        // Фокус на развитии
-        if (results.focusStatement) {
-            summary += `\n🎯 *ФОКУС НА РАЗВИТИИ:*\n`;
-            summary += `Вопрос: "${results.focusStatement.questionText.substring(0, 100)}..."\n`;
-            summary += `Сфера: ${window.AppState.getDomainName ? 
-                window.AppState.getDomainName(results.focusStatement.domain) : results.focusStatement.domain}\n`;
-            summary += `Архетип: ${results.focusStatement.archetype}\n`;
-            summary += `Балл: ${results.focusStatement.points}/5\n`;
-        }
-        
-        // Отправляем сводку
         await sendTextMessage(summary);
         
     } catch (error) {
@@ -255,17 +231,17 @@ async function sendResultsSummary() {
 async function sendTextMessage(text) {
     const url = `https://api.telegram.org/bot${window.APP_CONFIG.TELEGRAM_BOT_TOKEN}/sendMessage`;
     
-    // Разбиваем длинные сообщения
     const maxLength = 4000;
     if (text.length > maxLength) {
         const parts = [];
-        while (text.length > 0) {
-            parts.push(text.substring(0, maxLength));
-            text = text.substring(maxLength);
+        let remainingText = text;
+        while (remainingText.length > 0) {
+            parts.push(remainingText.substring(0, maxLength));
+            remainingText = remainingText.substring(maxLength);
         }
         
         for (const part of parts) {
-            await fetch(url, {
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -278,7 +254,11 @@ async function sendTextMessage(text) {
                 })
             });
             
-            // Задержка между сообщениями
+            if (!response.ok) {
+                const error = await response.json();
+                console.warn('Ошибка отправки части сообщения:', error);
+            }
+            
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     } else {
@@ -306,22 +286,30 @@ async function sendPhotoMessage() {
     if (!window.AppState || !window.AppState.user.uploadedPhoto) return;
     
     try {
-        const blob = await fetch(window.AppState.user.uploadedPhoto).then(r => r.blob());
+        console.log('📸 Отправка фото клиента...');
+        
+        // Получаем blob из data URL
+        const response = await fetch(window.AppState.user.uploadedPhoto);
+        const blob = await response.blob();
         
         const formData = new FormData();
         formData.append('chat_id', window.APP_CONFIG.TELEGRAM_CHANNEL_ID);
-        formData.append('photo', blob, 'client_photo.jpg');
-        formData.append('caption', `📸 Фото клиента для заказа ${window.AppState.user.orderId}\nКлиент: ${window.AppState.user.clientName || 'Не указан'}`);
+        formData.append('photo', blob, `client_photo_${window.AppState.user.orderId || 'order'}.jpg`);
+        
+        const safeClientName = window.AppState.user.clientName ? 
+            window.AppState.user.clientName.replace(/[<>]/g, '') : 'Не указан';
+        
+        formData.append('caption', `📸 Фото клиента для заказа ${window.AppState.user.orderId || 'Не указан'}\nКлиент: ${safeClientName}`);
         
         const url = `https://api.telegram.org/bot${window.APP_CONFIG.TELEGRAM_BOT_TOKEN}/sendPhoto`;
         
-        const response = await fetch(url, {
+        const apiResponse = await fetch(url, {
             method: 'POST',
             body: formData
         });
         
-        if (!response.ok) {
-            const error = await response.json();
+        if (!apiResponse.ok) {
+            const error = await apiResponse.json();
             console.warn('Ошибка отправки фото:', error);
         } else {
             console.log('✅ Фото клиента отправлено');
@@ -332,49 +320,110 @@ async function sendPhotoMessage() {
     }
 }
 
-// НОВАЯ ФУНКЦИЯ: Отправка чека об оплате
+// ИСПРАВЛЕННАЯ функция отправки чека
 async function sendReceiptMessage() {
     try {
         // Получаем файл чека (сначала из временной переменной, потом из состояния)
         const receiptFile = window.receiptFileToSend || window.AppState.user.receiptFile;
         
         if (!receiptFile) {
-            console.log('Чек не найден для отправки');
-            return;
+            console.log('ℹ️ Чек не найден для отправки');
+            return false;
         }
         
-        console.log('Отправка чека:', receiptFile.name);
+        console.log('📎 Начинаем отправку чека:', receiptFile.name);
         
-        // Если у нас есть dataUrl, используем его, иначе создаем blob из файла
         let blob;
+        let fileName;
+        
+        // ИСПРАВЛЕНИЕ: Правильная обработка dataUrl
         if (receiptFile.dataUrl) {
-            // Конвертируем data URL в blob
-            const response = await fetch(receiptFile.dataUrl);
-            blob = await response.blob();
+            // Если есть dataUrl, конвертируем его в blob
+            console.log('🔄 Конвертация dataUrl в blob...');
+            
+            // Извлекаем base64 данные из data URL
+            const base64Data = receiptFile.dataUrl.split(',')[1];
+            if (!base64Data) {
+                console.error('❌ Неверный формат dataUrl');
+                return false;
+            }
+            
+            // Декодируем base64 в бинарные данные
+            const byteCharacters = atob(base64Data);
+            const byteArrays = [];
+            
+            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+                const slice = byteCharacters.slice(offset, offset + 512);
+                
+                const byteNumbers = new Array(slice.length);
+                for (let i = 0; i < slice.length; i++) {
+                    byteNumbers[i] = slice.charCodeAt(i);
+                }
+                
+                const byteArray = new Uint8Array(byteNumbers);
+                byteArrays.push(byteArray);
+            }
+            
+            blob = new Blob(byteArrays, { type: receiptFile.type || 'image/jpeg' });
+            
+            // Определяем расширение файла
+            const fileExt = receiptFile.name ? 
+                receiptFile.name.split('.').pop() : 
+                (receiptFile.type === 'image/png' ? 'png' : 'jpg');
+            
+            fileName = receiptFile.name || `cheque_${window.AppState.user.orderId || 'order'}.${fileExt}`;
+            
+            console.log(`✅ DataUrl сконвертирован, размер: ${blob.size} bytes`);
+            
         } else if (receiptFile.file) {
-            // Используем оригинальный файл
+            // Если есть оригинальный файл
             blob = receiptFile.file;
+            fileName = receiptFile.file.name;
+            console.log(`✅ Используется оригинальный файл, размер: ${blob.size} bytes`);
+            
         } else {
-            console.warn('Нет данных для отправки чека');
-            return;
+            console.error('❌ Нет данных для отправки чека');
+            return false;
         }
         
-        // Определяем расширение файла
-        const fileExt = receiptFile.name.split('.').pop() || 'jpg';
-        const fileName = `Чек_${window.AppState.user.orderId || 'заказ'}.${fileExt}`;
+        // Дополнительная проверка blob
+        if (!blob || blob.size === 0) {
+            console.error('❌ Получен пустой blob');
+            return false;
+        }
+        
+        // Создаем безопасное имя файла
+        const safeOrderId = window.AppState.user.orderId ? 
+            window.AppState.user.orderId.replace(/[^a-zA-Z0-9-]/g, '') : 'zakaz';
+        
+        // Очищаем имя файла от потенциально опасных символов
+        const safeFileName = fileName.replace(/[^a-zA-Z0-9.\u0400-\u04FF-]/g, '_');
+        const finalFileName = `Cheque_${safeOrderId}_${safeFileName}`;
         
         const formData = new FormData();
         formData.append('chat_id', window.APP_CONFIG.TELEGRAM_CHANNEL_ID);
-        formData.append('document', blob, fileName);
-        formData.append('caption', `💰 *ПОДТВЕРЖДЕНИЕ ОПЛАТЫ*\n\n` +
+        formData.append('document', blob, finalFileName);
+        
+        // Безопасные данные для подписи
+        const safeClientName = window.AppState.user.clientName ? 
+            window.AppState.user.clientName.replace(/[<>]/g, '') : 'Не указан';
+        const safeClientEmail = window.AppState.user.clientEmail ? 
+            window.AppState.user.clientEmail.replace(/[<>]/g, '') : 'Не указан';
+        
+        const caption = `💰 *ПОДТВЕРЖДЕНИЕ ОПЛАТЫ*\n\n` +
             `🆔 Заказ: ${window.AppState.user.orderId || 'Не указан'}\n` +
-            `👤 Клиент: ${window.AppState.user.clientName || 'Не указан'}\n` +
-            `📧 Email: ${window.AppState.user.clientEmail || 'Не указан'}\n` +
+            `👤 Клиент: ${safeClientName}\n` +
+            `📧 Email: ${safeClientEmail}\n` +
             `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n` +
             `🕒 Время: ${new Date().toLocaleTimeString('ru-RU')}\n\n` +
-            `Файл: ${receiptFile.name} (${(receiptFile.size / 1024).toFixed(2)} KB)`);
+            `Файл: ${fileName} (${(blob.size / 1024).toFixed(2)} KB)`;
+        
+        formData.append('caption', caption);
+        formData.append('parse_mode', 'Markdown');
         
         const url = `https://api.telegram.org/bot${window.APP_CONFIG.TELEGRAM_BOT_TOKEN}/sendDocument`;
+        
+        console.log('📤 Отправка запроса в Telegram API...');
         
         const response = await fetch(url, {
             method: 'POST',
@@ -382,30 +431,46 @@ async function sendReceiptMessage() {
         });
         
         if (!response.ok) {
-            const error = await response.json();
-            console.error('Ошибка отправки чека:', error);
-            throw new Error(`Ошибка отправки чека: ${error.description || 'Неизвестная ошибка'}`);
-        } else {
-            console.log('✅ Чек успешно отправлен в Telegram');
-            
-            // Отправляем также дополнительное уведомление
-            await sendTextMessage(`✅ *ЧЕК ПОЛУЧЕН*\n\nЗаказ: ${window.AppState.user.orderId}\nКлиент: ${window.AppState.user.clientName}\nФайл: ${receiptFile.name}`);
+            const errorData = await response.json();
+            console.error('❌ Ошибка API Telegram:', errorData);
+            throw new Error(`Ошибка отправки чека: ${errorData.description || 'Неизвестная ошибка'}`);
         }
         
+        const responseData = await response.json();
+        console.log('✅ Ответ от Telegram:', responseData.ok ? 'Успешно' : 'Ошибка');
+        
+        // Отправляем дополнительное уведомление
+        await sendTextMessage(`✅ *ЧЕК ПОЛУЧЕН*\n\nЗаказ: ${window.AppState.user.orderId || 'Не указан'}\nКлиент: ${safeClientName}\nФайл: ${fileName}`);
+        
+        return true;
+        
     } catch (error) {
-        console.error('Ошибка при отправке чека:', error);
-        throw error;
+        console.error('❌ Ошибка при отправке чека:', error);
+        return false;
     }
 }
 
 async function sendContractMessage(contractText) {
     try {
-        const blob = new Blob([contractText], { type: 'text/plain' });
+        console.log('📄 Отправка договора...');
+        
+        const blob = new Blob([contractText], { type: 'text/plain;charset=utf-8' });
+        
+        const safeOrderId = window.AppState.user.orderId ? 
+            window.AppState.user.orderId.replace(/[^a-zA-Z0-9-]/g, '') : 'zakaz';
+        const fileName = `Dogovor_${safeOrderId}.txt`;
         
         const formData = new FormData();
         formData.append('chat_id', window.APP_CONFIG.TELEGRAM_CHANNEL_ID);
-        formData.append('document', blob, `Договор_${window.AppState.user.orderId}.txt`);
-        formData.append('caption', `📄 *ДОГОВОР*\n\nЗаказ: ${window.AppState.user.orderId}\nКлиент: ${window.AppState.user.clientName || 'Не указан'}\nEmail: ${window.AppState.user.clientEmail || 'Не указан'}`);
+        formData.append('document', blob, fileName);
+        
+        const safeClientName = window.AppState.user.clientName ? 
+            window.AppState.user.clientName.replace(/[<>]/g, '') : 'Не указан';
+        const safeClientEmail = window.AppState.user.clientEmail ? 
+            window.AppState.user.clientEmail.replace(/[<>]/g, '') : 'Не указан';
+        
+        formData.append('caption', `📄 *ДОГОВОР*\n\nЗаказ: ${window.AppState.user.orderId || 'Не указан'}\nКлиент: ${safeClientName}\nEmail: ${safeClientEmail}`);
+        formData.append('parse_mode', 'Markdown');
         
         const url = `https://api.telegram.org/bot${window.APP_CONFIG.TELEGRAM_BOT_TOKEN}/sendDocument`;
         
@@ -426,7 +491,6 @@ async function sendContractMessage(contractText) {
     }
 }
 
-// Вспомогательная функция для получения текущей даты (если не определена)
 if (!window.getCurrentDate) {
     window.getCurrentDate = function() {
         return new Date().toLocaleDateString('ru-RU');

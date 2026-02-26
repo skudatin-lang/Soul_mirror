@@ -3,6 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Политика безопасности контента -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
+        style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';
+        img-src 'self' data: https:;
+        connect-src 'self' https://api.telegram.org https://script.google.com;
+        font-src 'self' https://cdnjs.cloudflare.com;
+        frame-src 'none';
+        object-src 'none';
+    ">
+    
+    <!-- Защита от MIME-тип атак -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    
+    <!-- Защита от кликджекинга -->
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    
+    <!-- Включение строгой политики реферера -->
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    
+    <!-- Запрет на автоматическое определение телефонов/адресов -->
+    <meta name="format-detection" content="telephone=no, address=no, email=no">
+    
     <title>Soul Mirror - Интегративный портрет</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -37,9 +62,10 @@
         <!-- Приложение загружается здесь -->
     </div>
 
-    <!-- Скрипты -->
+    <!-- Скрипты в правильном порядке -->
     <script src="config.js"></script>
     <script src="gsheet.js"></script>
+    <script src="security.js"></script>
     <script src="app/state.js"></script>
     
     <!-- Сервисы из папки services/ -->
@@ -54,5 +80,17 @@
     <script src="app/screens/screen4.js"></script>
     <script src="app/screens/screen5.js"></script>
     <script src="app/app.js"></script>
+    
+    <!-- Инициализация безопасности -->
+    <script>
+        // Инициализация после загрузки всех скриптов
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.Security) {
+                window.Security.secureMemory();
+                window.Security.protectConsole();
+                window.ErrorHandler.init();
+            }
+        });
+    </script>
 </body>
 </html>

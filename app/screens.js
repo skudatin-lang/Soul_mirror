@@ -21,14 +21,10 @@ window.ScreenManager = {
                 Screen3.render();
                 break;
             case 4:
-                // Если возвращаемся на экран договора и он уже сгенерирован,
-                // нужно убедиться, что все данные загружены
                 if (AppState.user.contractGenerated) {
-                    // Пересчитываем архетип если нужно
                     if (!AppState.user.archetype) {
                         AppState.user.archetype = AppState.calculateArchetype();
                     }
-                    // Генерируем ID заказа если нужно
                     if (!AppState.user.orderId) {
                         AppState.generateOrderId();
                     }
@@ -36,9 +32,7 @@ window.ScreenManager = {
                 Screen4.render();
                 break;
             case 5:
-                // Проверяем оплату
                 if (!AppState.user.paymentCompleted) {
-                    // Показываем страницу оплаты
                     this.showPaymentPage();
                     return;
                 }
@@ -46,11 +40,9 @@ window.ScreenManager = {
                 break;
         }
         
-        // Автоматическая прокрутка к началу экрана
         this.scrollToTop();
     },
     
-    // Прокрутка к началу экрана
     scrollToTop() {
         setTimeout(() => {
             const appContainer = document.getElementById('app-container');
@@ -61,7 +53,6 @@ window.ScreenManager = {
                 });
             }
             
-            // Также прокручиваем body для надежности
             window.scrollTo({
                 top: 0,
                 behavior: 'smooth'
@@ -75,6 +66,28 @@ window.ScreenManager = {
         
         const format = AppState.getSelectedFormat();
         const results = AppState.user.archetypeResults || {};
+        
+        // Безопасное экранирование данных
+        const safeOrderId = window.Security ? 
+            window.Security.escapeHtml(AppState.user.orderId || 'Не указан') : 
+            (AppState.user.orderId || 'Не указан');
+            
+        const safeClientName = window.Security ? 
+            window.Security.escapeHtml(AppState.user.clientName || 'Не указано') : 
+            (AppState.user.clientName || 'Не указано');
+            
+        const safeFormatName = format ? 
+            (window.Security ? window.Security.escapeHtml(format.name) : format.name) : 
+            '3D модель Зеркало Души';
+            
+        const safeArchetypeValue = results.dominantArchetype || AppState.user.archetype?.name || 'Не определен';
+        const safeArchetype = window.Security ? 
+            window.Security.escapeHtml(safeArchetypeValue) : 
+            safeArchetypeValue;
+            
+        const safePrice = format && format.price ? 
+            format.price.toLocaleString() + ' ₽' : 
+            '12 000 ₽';
         
         container.innerHTML = `
             <div class="screen active" id="paymentScreen">
@@ -100,23 +113,23 @@ window.ScreenManager = {
                             <div class="payment-content">
                                 <div class="payment-row">
                                     <span class="label">Номер заказа:</span>
-                                    <span class="value">${AppState.user.orderId || 'Не указан'}</span>
+                                    <span class="value">${safeOrderId}</span>
                                 </div>
                                 <div class="payment-row">
                                     <span class="label">Клиент:</span>
-                                    <span class="value">${AppState.user.clientName || 'Не указано'}</span>
+                                    <span class="value">${safeClientName}</span>
                                 </div>
                                 <div class="payment-row">
                                     <span class="label">Услуга:</span>
-                                    <span class="value">${format ? format.name : '3D модель Зеркало Души'}</span>
+                                    <span class="value">${safeFormatName}</span>
                                 </div>
                                 <div class="payment-row">
                                     <span class="label">Определенный архетип:</span>
-                                    <span class="value archetype-value">${results.dominantArchetype || AppState.user.archetype?.name || 'Не определен'}</span>
+                                    <span class="value archetype-value">${safeArchetype}</span>
                                 </div>
                                 <div class="payment-row total">
                                     <span class="label">К оплате:</span>
-                                    <span class="value price-value">${format ? format.price.toLocaleString() + ' ₽' : '12 000 ₽'}</span>
+                                    <span class="value price-value">${safePrice}</span>
                                 </div>
                             </div>
                         </div>
@@ -152,7 +165,7 @@ window.ScreenManager = {
                                         </div>
                                         <div class="detail-row">
                                             <span class="detail-label">Сумма:</span>
-                                            <span class="detail-value price">${format ? format.price.toLocaleString() + ' ₽' : '12 000 ₽'}</span>
+                                            <span class="detail-value price">${safePrice}</span>
                                         </div>
                                     </div>
                                     
@@ -176,11 +189,11 @@ window.ScreenManager = {
                                     <p>После выполнения перевода, пожалуйста, загрузите скриншот подтверждения оплаты:</p>
                                     
                                     <div class="receipt-upload-area" id="receiptUploadArea">
-                                        <input type="file" id="receiptFile" accept="image/*" style="display: none;">
+                                        <input type="file" id="receiptFile" accept="image/jpeg,image/png,image/gif,image/webp" style="display: none;">
                                         <div class="upload-placeholder" id="uploadPlaceholder">
                                             <i class="fas fa-cloud-upload-alt"></i>
                                             <span>Нажмите для загрузки скриншота</span>
-                                            <span class="file-types">Поддерживаются JPG, PNG</span>
+                                            <span class="file-types">Поддерживаются JPG, PNG, GIF, WebP (до 5 MB)</span>
                                         </div>
                                         <div class="upload-preview" id="uploadPreview" style="display: none;">
                                             <i class="fas fa-file-image"></i>
@@ -191,8 +204,11 @@ window.ScreenManager = {
                                         </div>
                                     </div>
                                     
-                                    <div id="fileSizeError" class="file-error" style="display: none; color: #e74c3c; font-size: 13px; margin-top: 5px;">
+                                    <div id="fileSizeError" class="file-error" style="display: none;">
                                         <i class="fas fa-exclamation-triangle"></i> Файл слишком большой. Максимальный размер: 5 MB
+                                    </div>
+                                    <div id="fileTypeError" class="file-error" style="display: none;">
+                                        <i class="fas fa-exclamation-triangle"></i> Неподдерживаемый тип файла. Используйте JPG, PNG, GIF или WebP
                                     </div>
                                 </div>
                                 
@@ -207,6 +223,8 @@ window.ScreenManager = {
                                         </label>
                                     </div>
                                 </div>
+                                
+                                <input type="hidden" id="csrfToken" value="${window.Security ? window.Security.generateCsrfToken() : ''}">
                                 
                                 <button class="btn btn-primary btn-lg" id="processPaymentBtn" disabled>
                                     <i class="fas fa-check-circle"></i>
@@ -238,10 +256,8 @@ window.ScreenManager = {
             </div>
         `;
         
-        // Автоматическая прокрутка
         this.scrollToTop();
         
-        // Инициализация событий страницы оплаты
         setTimeout(() => {
             this.initPaymentEvents();
         }, 100);
@@ -251,7 +267,6 @@ window.ScreenManager = {
     initPaymentEvents() {
         console.log('Инициализация событий оплаты');
         
-        // Кнопка "Назад"
         const prevBtn = document.getElementById('paymentPrevBtn');
         if (prevBtn) {
             prevBtn.addEventListener('click', () => {
@@ -259,7 +274,6 @@ window.ScreenManager = {
             });
         }
         
-        // Кнопка "Просмотреть договор"
         const skipBtn = document.getElementById('paymentSkipBtn');
         if (skipBtn) {
             skipBtn.addEventListener('click', () => {
@@ -267,15 +281,13 @@ window.ScreenManager = {
             });
         }
         
-        // Кнопка копирования номера телефона
         const copyBtn = document.getElementById('copyPhoneBtn');
         if (copyBtn) {
             copyBtn.addEventListener('click', () => {
-                const phoneNumber = '89777145325'; // Номер без форматирования для копирования
+                const phoneNumber = '89777145325';
                 navigator.clipboard.writeText(phoneNumber).then(() => {
                     this.showNotification('Номер телефона скопирован', false);
                     
-                    // Визуальная обратная связь
                     const originalHtml = copyBtn.innerHTML;
                     copyBtn.innerHTML = '<i class="fas fa-check"></i>';
                     setTimeout(() => {
@@ -288,21 +300,19 @@ window.ScreenManager = {
             });
         }
         
-        // Загрузка файла чека
         const fileInput = document.getElementById('receiptFile');
         const uploadPlaceholder = document.getElementById('uploadPlaceholder');
         const uploadPreview = document.getElementById('uploadPreview');
         const fileNameSpan = document.getElementById('fileName');
         const removeFileBtn = document.getElementById('removeFileBtn');
         const fileSizeError = document.getElementById('fileSizeError');
+        const fileTypeError = document.getElementById('fileTypeError');
         
         if (fileInput && uploadPlaceholder) {
-            // Клик по области загрузки
             uploadPlaceholder.addEventListener('click', () => {
                 fileInput.click();
             });
             
-            // Drag and drop
             const uploadArea = document.getElementById('receiptUploadArea');
             
             uploadArea.addEventListener('dragover', (e) => {
@@ -324,7 +334,6 @@ window.ScreenManager = {
                 }
             });
             
-            // Обработка выбора файла
             fileInput.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
                     this.handleFileSelect(e.target.files[0]);
@@ -332,10 +341,9 @@ window.ScreenManager = {
             });
         }
         
-        // Кнопка удаления файла
         if (removeFileBtn) {
             removeFileBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Предотвращаем всплытие события
+                e.stopPropagation();
                 
                 if (fileInput) {
                     fileInput.value = '';
@@ -349,15 +357,18 @@ window.ScreenManager = {
                 if (fileSizeError) {
                     fileSizeError.style.display = 'none';
                 }
+                if (fileTypeError) {
+                    fileTypeError.style.display = 'none';
+                }
                 
-                // Удаляем файл из состояния
+                // Очищаем данные чека
                 AppState.user.receiptFile = null;
+                AppState.user.receiptFileData = null;
                 
                 this.updatePaymentButton();
             });
         }
         
-        // Чекбокс согласия
         const agreeCheckbox = document.getElementById('agreePaymentTerms');
         if (agreeCheckbox) {
             agreeCheckbox.addEventListener('change', () => {
@@ -365,7 +376,6 @@ window.ScreenManager = {
             });
         }
         
-        // Кнопка отправки подтверждения
         const paymentBtn = document.getElementById('processPaymentBtn');
         if (paymentBtn) {
             paymentBtn.addEventListener('click', async () => {
@@ -376,52 +386,77 @@ window.ScreenManager = {
         this.updatePaymentButton();
     },
     
-    // Обработка выбора файла
-    handleFileSelect(file) {
+    // Обработка выбора файла с валидацией через Security
+    async handleFileSelect(file) {
         const fileSizeError = document.getElementById('fileSizeError');
+        const fileTypeError = document.getElementById('fileTypeError');
         const uploadPlaceholder = document.getElementById('uploadPlaceholder');
         const uploadPreview = document.getElementById('uploadPreview');
         const fileNameSpan = document.getElementById('fileName');
         
-        // Проверка размера файла (максимум 5 MB)
-        const maxSize = 5 * 1024 * 1024; // 5 MB
-        if (file.size > maxSize) {
-            if (fileSizeError) {
-                fileSizeError.style.display = 'block';
+        // Скрываем предыдущие ошибки
+        if (fileSizeError) fileSizeError.style.display = 'none';
+        if (fileTypeError) fileTypeError.style.display = 'none';
+        
+        // Валидация через Security модуль
+        if (window.Security) {
+            const validation = await window.Security.validateImageFile(file);
+            
+            if (!validation.valid) {
+                if (validation.error && validation.error.includes('размер')) {
+                    if (fileSizeError) fileSizeError.style.display = 'block';
+                } else if (validation.error && (validation.error.includes('тип') || validation.error.includes('расширение'))) {
+                    if (fileTypeError) fileTypeError.style.display = 'block';
+                } else {
+                    this.showNotification(validation.error || 'Ошибка валидации файла', true);
+                }
+                return;
             }
-            return;
+        } else {
+            // Fallback валидация
+            const maxSize = 5 * 1024 * 1024;
+            if (file.size > maxSize) {
+                if (fileSizeError) fileSizeError.style.display = 'block';
+                return;
+            }
+            
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                if (fileTypeError) fileTypeError.style.display = 'block';
+                return;
+            }
         }
         
-        if (fileSizeError) {
-            fileSizeError.style.display = 'none';
-        }
-        
-        // Проверка типа файла
-        if (!file.type.startsWith('image/')) {
-            this.showNotification('Пожалуйста, выберите изображение (JPG или PNG)', true);
-            return;
-        }
-        
-        // Сохраняем файл в состоянии приложения
+        // Сохраняем метаданные файла
         AppState.user.receiptFile = {
             name: file.name,
             size: file.size,
             type: file.type,
-            file: file, // Сохраняем сам файл для последующей отправки
-            dataUrl: null // Здесь будет data URL после чтения файла
+            lastModified: file.lastModified
         };
         
-        // Читаем файл для отправки
+        // Читаем файл для отправки (безопасно)
         const reader = new FileReader();
         reader.onload = (e) => {
-            AppState.user.receiptFile.dataUrl = e.target.result;
+            // Сохраняем только если это действительно изображение
+            if (e.target.result && e.target.result.startsWith('data:image/')) {
+                AppState.user.receiptFileData = e.target.result;
+                console.log('✅ Файл чека загружен:', file.name);
+            } else {
+                this.showNotification('Файл поврежден или не является изображением', true);
+                AppState.user.receiptFile = null;
+                AppState.user.receiptFileData = null;
+                return;
+            }
         };
         reader.readAsDataURL(file);
         
         // Показываем превью
         if (uploadPlaceholder && uploadPreview && fileNameSpan) {
             uploadPlaceholder.style.display = 'none';
-            fileNameSpan.textContent = file.name;
+            fileNameSpan.textContent = file.name.length > 30 ? 
+                file.name.substring(0, 27) + '...' : 
+                file.name;
             uploadPreview.style.display = 'flex';
         }
         
@@ -434,69 +469,93 @@ window.ScreenManager = {
         const paymentBtn = document.getElementById('processPaymentBtn');
         
         if (agreeCheckbox && paymentBtn) {
+            // Проверяем, что файл загружен и данные прочитаны
             const hasFile = AppState.user.receiptFile !== null;
-            paymentBtn.disabled = !(agreeCheckbox.checked && hasFile);
+            const hasFileData = AppState.user.receiptFileData !== null;
+            paymentBtn.disabled = !(agreeCheckbox.checked && hasFile && hasFileData);
         }
     },
     
-    // Обработка оплаты
+    // Обработка оплаты с проверкой CSRF
     async processPayment() {
         const paymentBtn = document.getElementById('processPaymentBtn');
+        const csrfToken = document.getElementById('csrfToken');
+        
         if (!paymentBtn) return;
+        
+        // Проверка CSRF токена
+        if (window.Security && csrfToken) {
+            if (!window.Security.validateCsrfToken(csrfToken.value)) {
+                this.showNotification('Ошибка безопасности. Пожалуйста, обновите страницу.', true);
+                return;
+            }
+        }
+        
+        // Дополнительная проверка наличия файла
+        if (!AppState.user.receiptFile || !AppState.user.receiptFileData) {
+            this.showNotification('Пожалуйста, загрузите чек об оплате', true);
+            paymentBtn.disabled = false;
+            return;
+        }
         
         const originalText = paymentBtn.innerHTML;
         paymentBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка подтверждения...';
         paymentBtn.disabled = true;
         
         try {
-            // Сохраняем данные о подтверждении оплаты
             AppState.user.paymentConfirmed = true;
             AppState.user.paymentDate = new Date().toISOString();
             
-            // Отправляем данные в Telegram с загруженным чеком
+            // === ИСПРАВЛЕНИЕ: Правильная передача данных чека ===
+            // Создаем объект с полными данными для отправки в Telegram
+            window.receiptFileToSend = {
+                name: AppState.user.receiptFile.name,
+                size: AppState.user.receiptFile.size,
+                type: AppState.user.receiptFile.type,
+                dataUrl: AppState.user.receiptFileData  // Это поле ожидает sendReceiptMessage
+            };
+            
+            console.log('📤 Подготовка к отправке чека:', window.receiptFileToSend.name);
+            
             if (typeof window.sendOrderToTelegram === 'function') {
-                // Передаем файл чека для отправки
-                if (AppState.user.receiptFile && AppState.user.receiptFile.file) {
-                    // Сохраняем файл в глобальной переменной для доступа из telegram.js
-                    window.receiptFileToSend = AppState.user.receiptFile;
-                }
-                
                 await window.sendOrderToTelegram();
                 console.log('✅ Данные отправлены в Telegram');
-                
-                // Очищаем временную переменную
-                delete window.receiptFileToSend;
             } else {
                 console.warn('Функция отправки в Telegram не найдена');
-                
-                // Если функция не найдена, имитируем успешную отправку
-                console.log('Имитация отправки чека:', AppState.user.receiptFile?.name);
+                // Имитация успешной отправки для тестирования
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
             
-            // Имитация отправки на сервер
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // Очищаем временную переменную после отправки
+            setTimeout(() => {
+                delete window.receiptFileToSend;
+            }, 1000);
             
-            // Показываем успешное сообщение
             this.showNotification('Подтверждение оплаты отправлено! Администратор проверит платеж в ближайшее время.', false);
             
-            // Обновляем состояние (но не помечаем как оплаченный полностью)
             AppState.user.paymentUnderReview = true;
             
-            // Переходим на экран результатов с пометкой "на проверке"
             setTimeout(() => {
-                Screen5.render({ paymentUnderReview: true });
+                if (typeof Screen5 !== 'undefined' && Screen5.render) {
+                    Screen5.render({ paymentUnderReview: true });
+                } else {
+                    this.load(5);
+                }
             }, 2000);
             
         } catch (error) {
-            console.error('Ошибка отправки подтверждения:', error);
-            this.showNotification('Ошибка отправки подтверждения: ' + error.message, true);
+            console.error('❌ Ошибка отправки подтверждения:', error);
+            this.showNotification('Ошибка отправки подтверждения: ' + 
+                (error.message || 'Попробуйте еще раз'), true);
             
             paymentBtn.innerHTML = originalText;
             paymentBtn.disabled = false;
+            
+            // Очищаем временную переменную в случае ошибки
+            delete window.receiptFileToSend;
         }
     },
     
-    // Обновление прогресс-бара
     updateProgressBar(step) {
         const steps = document.querySelectorAll('.progress-step');
         steps.forEach((stepElement, index) => {
@@ -509,7 +568,6 @@ window.ScreenManager = {
         });
     },
     
-    // Переход к следующему шагу
     next() {
         switch(this.currentScreen) {
             case 1:
@@ -545,35 +603,36 @@ window.ScreenManager = {
                     alert('Пожалуйста, сформируйте договор');
                     return;
                 }
-                // Переходим на страницу оплаты вместо экрана результатов
                 this.showPaymentPage();
                 break;
                 
             case 5:
-                // Возврат на первый экран
                 AppState.resetAll();
                 this.load(1);
                 break;
         }
     },
     
-    // Возврат к предыдущему шагу
     prev() {
         if (this.currentScreen > 1) {
             this.load(this.currentScreen - 1);
         }
     },
     
-    // Показать уведомление
     showNotification(message, isError = false) {
-        // Удаляем существующие уведомления
         document.querySelectorAll('.notification').forEach(n => n.remove());
         
         const notification = document.createElement('div');
         notification.className = 'notification' + (isError ? ' error' : '');
+        
+        // Экранируем сообщение для безопасности
+        const safeMessage = window.Security ? 
+            window.Security.escapeHtml(message) : 
+            message.replace(/[<>]/g, '');
+        
         notification.innerHTML = `
             <i class="fas ${isError ? 'fa-exclamation-triangle' : 'fa-check-circle'}"></i>
-            <span>${message}</span>
+            <span>${safeMessage}</span>
         `;
         document.body.appendChild(notification);
         
