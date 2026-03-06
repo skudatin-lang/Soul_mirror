@@ -146,7 +146,7 @@ window.AppState = {
         
         // Рассчитываем средний балл
         results.averageScore = results.answeredQuestions > 0 ? 
-            (results.totalScore / results.answeredQuestions).toFixed(2) : 0;
+            parseFloat((results.totalScore / results.answeredQuestions).toFixed(2)) : 0;
         
         // 2. Определяем все активные архетипы (≥4 баллов)
         const activeArchetypes = [];
